@@ -1,29 +1,61 @@
 import serial
 import time
 
-# Konfiguration der seriellen Verbindung (COM-Port ggf. anpassen)
+# Serielle Verbindung konfigurieren
 ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=2)
-time.sleep(2)  # Wartezeit für Verbindungsaufbau
+time.sleep(2)  # Verbindung stabilisieren
 
-def send_gcode(command):
+def send_gcode_wait_ok(command):
+    print(f">>> Sende: {command}")
     ser.write((command + '\n').encode())
-    time.sleep(0.5)
-    while ser.in_waiting:
-        print(ser.readline().decode().strip())
+    while True:
+        line = ser.readline().decode(errors='ignore').strip()
+        if line:
+            print(f"<<< {line}")
+        if "busy" in line.lower():
+            continue
+        if line == "ok":
+            break
 
-# Initialisierung: Homing aller Achsen
-send_gcode("G28")  # Referenzfahrt
+def get_position():
+    ser.write(b"M114\n")
+    position_lines = []
+    while True:
+        line = ser.readline().decode(errors='ignore').strip()
+        if line:
+            position_lines.append(line)
+            if "ok" in line.lower():
+                break
+    print("--- Aktuelle Position ---")
+    for line in position_lines:
+        print(line)
 
-# Bewegung innerhalb des 150x150x150 mm Arbeitsraums
-bewegungen = [
-    "G1 X50 Y50 Z0 F3000",    # Position 1
-    "G1 X100 Y50 Z50 F3000",  # Position 2
-    "G1 X150 Y150 Z150 F3000" # Position 3
-]
+# Initialisierung
+send_gcode_wait_ok("G28")
+send_gcode_wait_ok("G90")
+send_gcode_wait_ok("G1 X75 Y75 Z20")
+send_gcode_wait_ok("M400")
+send_gcode_wait_ok("G9101")
 
-for befehl in bewegungen:
-    send_gcode(befehl)
-    time.sleep(1)
+# Interaktiver Modus
+print("\n--- Interaktiver Modus (Relativbewegung) ---")
+print("Gib relative Schritte für X Y Z ein (z. B. '10 0 -5') oder 'exit' zum Beenden:")
 
-# Verbindung schließen
+try:
+    while True:
+        user_input = input("ΔX ΔY ΔZ > ").strip()
+        if user_input.lower() in ['exit', 'quit']:
+            break
+        try:
+            dx, dy, dz = map(float, user_input.split())
+            command = f"G1 X{dx} Y{dy} Z{dz}"
+            send_gcode_wait_ok(command)
+            send_gcode_wait_ok("M400")
+            get_position()
+        except ValueError:
+            print("Ungültige Eingabe. Bitte drei Zahlen eingeben, z. B. '10 0 -5'.")
+except KeyboardInterrupt:
+    print("\nBeendet durch Benutzer.")
+
 ser.close()
+print("Verbindung geschlossen.")
