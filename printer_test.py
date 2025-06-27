@@ -2,7 +2,7 @@ import serial
 import time
 
 # Konfiguration der seriellen Verbindung (COM-Port ggf. anpassen)
-ser = serial.Serial('COM3', 115200, timeout=2)
+ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=2)
 time.sleep(2)  # Wartezeit für Verbindungsaufbau
 
 def send_gcode(command):
